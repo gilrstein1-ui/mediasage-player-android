@@ -1,0 +1,71 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.tulik.player'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.tulik.player"
+        minSdk 26
+        targetSdk 34
+        versionCode 11
+        versionName "2.9"
+
+        // Per-user build: the user's public URL + basic-auth creds are injected at
+        // build time (CI passes -PappUrl/-PappAuthUser/-PappPw from secrets — kept out
+        // of this public repo). A plain checkout builds against a placeholder server.
+        def prop = { String k, String d -> (project.findProperty(k) ?: d).toString() }
+        buildConfigField "String", "APP_URL",   "\"${prop('appUrl', 'https://example.invalid')}\""
+        buildConfigField "String", "AUTH_USER", "\"${prop('appAuthUser', '')}\""
+        buildConfigField "String", "AUTH_PW",   "\"${prop('appPw', '')}\""
+        // Launcher / notification label — Rambo's personal build ships as "RamboPlayer"
+        resValue "string", "app_name", prop('appName', 'TulikPlayer')
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    // Stable signing key so EVERY build shares ONE signature → the app updates in
+    // place instead of "package conflicts with an existing package" (which an
+    // ephemeral CI debug key caused). The keystore is NOT in this public repo — CI
+    // restores app/tulik-debug.p12 from the KEYSTORE_B64 secret before building.
+    // storePassword == keyPassword is required for PKCS12.
+    signingConfigs {
+        debug {
+            storeFile file('tulik-debug.p12')
+            storeType 'PKCS12'
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.media:media:1.7.0'
+    implementation 'androidx.webkit:webkit:1.11.0'
+}

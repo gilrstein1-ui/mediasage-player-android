@@ -1,0 +1,94 @@
+name: Build APK
+
+# Builds ONE installable (debug-signed) APK per user. Each variant bakes in that
+# user's PUBLIC web address + basic-auth username + password (from a per-user
+# secret), so the app opens straight to their player from anywhere — no Tailscale,
+# no picker, no password prompt. A per-user APK only ever holds its own password.
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [ gil, ohad, rambo, noodles, canoli, gilrambo ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve per-user config (${{ matrix.variant }})
+        env:
+          # Per-user public URL + basic-auth username come from a secret (kept out of
+          # this public repo). Format: one line per variant "variant|URL|user".
+          VARIANT_URLS: ${{ secrets.VARIANT_URLS }}
+          PW_gil: ${{ secrets.PW_GIL }}
+          PW_ohad: ${{ secrets.PW_OHAD }}
+          PW_rambo: ${{ secrets.PW_RAMBO }}
+          PW_noodles: ${{ secrets.PW_NOODLES }}
+          PW_canoli: ${{ secrets.PW_CANOLI }}
+          PW_gilrambo: ${{ secrets.PW_GIL }}
+        run: |
+          LINE=$(printf '%s\n' "$VARIANT_URLS" | grep "^${{ matrix.variant }}|") || true
+          if [ -z "$LINE" ]; then echo "no config for variant ${{ matrix.variant }}"; exit 1; fi
+          URL=$(echo "$LINE" | cut -d'|' -f2)
+          AU=$(echo "$LINE"  | cut -d'|' -f3)
+          # app label is not sensitive — Rambo's builds ship as RamboPlayer
+          case "${{ matrix.variant }}" in
+            rambo|gilrambo) NAME="RamboPlayer" ;;
+            *)              NAME="TulikPlayer" ;;
+          esac
+          PWVAR="PW_${{ matrix.variant }}"; PW="${!PWVAR}"
+          echo "::add-mask::$PW"
+          echo "::add-mask::$URL"
+          echo "::add-mask::$AU"
+          echo "APP_URL=$URL"       >> "$GITHUB_ENV"
+          echo "APP_AUTHUSER=$AU"   >> "$GITHUB_ENV"
+          echo "APP_PW=$PW"         >> "$GITHUB_ENV"
+          echo "APP_NAME=$NAME"     >> "$GITHUB_ENV"
+          echo "resolved ${{ matrix.variant }} (label $NAME)"
+
+      # The default launcher icon is the plain (no-bandana) dog for everyone.
+      # Rambo's RamboPlayer keeps the red-bandana dog — swap it in for that variant only.
+      - name: Rambo gets the bandana dog icon
+        if: ${{ matrix.variant == 'rambo' || matrix.variant == 'gilrambo' }}
+        run: |
+          cp branding/ic_dog_rambo.png app/src/main/res/drawable-nodpi/ic_dog.png
+          echo "rambo: swapped in the bandana dog launcher icon"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Restore signing key (from secret, kept out of the public repo)
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > app/tulik-debug.p12
+          echo "restored signing keystore ($(stat -c%s app/tulik-debug.p12) bytes)"
+
+      - name: Build debug APK (${{ matrix.variant }})
+        run: >
+          gradle assembleDebug --no-daemon --stacktrace
+          -PappUrl="$APP_URL" -PappAuthUser="$APP_AUTHUSER" -PappPw="$APP_PW"
+          -PappName="$APP_NAME"
+
+      - name: Upload APK (${{ matrix.variant }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: TulikPlayer-${{ matrix.variant }}
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
