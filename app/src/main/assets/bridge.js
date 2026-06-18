@@ -256,6 +256,30 @@
 
   if (window.__msAndroid) return;
 
+  // --- Adaptive bottom-bar height -----------------------------------------
+  // --ms-bar-h reserves scroll space above the pinned transport and positions
+  // the toast / follow-banner. A hardcoded guess (162px) is wrong on a phone
+  // whose width makes the bar wrap to a different height (e.g. a wider screen
+  // keeps now-playing on one line → shorter bar → dead gap; a narrower one wraps
+  // → taller bar → content hidden behind it). Measure the real bar instead, so
+  // every screen gets the correct layout automatically.
+  function syncBarHeight() {
+    try {
+      if (window.innerWidth > 760) return;            // mobile layout only
+      var bar = document.querySelector('.bar');
+      if (!bar) return;
+      var h = Math.round(bar.getBoundingClientRect().height);
+      if (h > 0) document.documentElement.style.setProperty('--ms-bar-h', h + 'px');
+    } catch (e) {}
+  }
+  try {
+    syncBarHeight();
+    window.addEventListener('resize', syncBarHeight);
+    window.addEventListener('orientationchange', function () { setTimeout(syncBarHeight, 250); });
+    var __bar = document.querySelector('.bar');
+    if (__bar && window.ResizeObserver) { new ResizeObserver(syncBarHeight).observe(__bar); }
+  } catch (e) {}
+
   var handlers = {};          // captured navigator.mediaSession action handlers
   var last = { title: '', artist: '', art: '', playing: false };
 
@@ -334,5 +358,5 @@
     }
   }
 
-  setInterval(pushState, 1500);
+  setInterval(function () { pushState(); syncBarHeight(); }, 1500);
 })();
