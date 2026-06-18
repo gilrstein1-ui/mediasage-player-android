@@ -166,7 +166,7 @@ class MainActivity : AppCompatActivity() {
                     addCategory(Intent.CATEGORY_OPENABLE)
                 }
                 return try {
-                    startActivityForResult(Intent.createChooser(intent, "Select a photo"), REQ_FILE)
+                    startActivityForResult(intent, REQ_FILE)
                     true
                 } catch (e: Exception) {
                     fileCallback = null
