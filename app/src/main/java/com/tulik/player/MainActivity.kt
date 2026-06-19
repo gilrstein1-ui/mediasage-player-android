@@ -208,7 +208,14 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) { /* fall back to onPageFinished */ }
         }
 
-        webView.loadUrl("$baseUrl/player")
+        // Restore the WebView (page, history, scroll) after the system tears down a
+        // backgrounded Activity, so returning to the app doesn't blank out and fully
+        // reload the player. Fall back to a fresh load if there's no state to restore.
+        if (savedInstanceState == null ||
+            webView.restoreState(savedInstanceState) == null
+        ) {
+            webView.loadUrl("$baseUrl/player")
+        }
 
         // Check the hub for a newer build and offer a one-tap in-app update.
         Updater.check(this)
@@ -217,6 +224,13 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         Updater.resumeIfPending(this)   // continue an update after the install-source grant
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        // Persist the WebView's current page + history so an Activity the system kills
+        // in the background can come back without a black screen and full reload.
+        if (::webView.isInitialized) webView.saveState(outState)
     }
 
     /** Called by the foreground service when notification/lock-screen buttons are pressed. */
