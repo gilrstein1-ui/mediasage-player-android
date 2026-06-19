@@ -209,6 +209,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.loadUrl("$baseUrl/player")
+
+        // Check the hub for a newer build and offer a one-tap in-app update.
+        Updater.check(this)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Updater.resumeIfPending(this)   // continue an update after the install-source grant
     }
 
     /** Called by the foreground service when notification/lock-screen buttons are pressed. */
@@ -248,6 +256,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         if (instance === this) instance = null
+        Updater.unregister(this)
         stopService(Intent(this, PlaybackService::class.java))
         super.onDestroy()
     }
