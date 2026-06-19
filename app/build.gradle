@@ -11,8 +11,8 @@ android {
         applicationId "com.tulik.player"
         minSdk 26
         targetSdk 34
-        versionCode 15
-        versionName "2.13"
+        versionCode 16
+        versionName "2.14"
 
         // Per-user build: the user's public URL + basic-auth creds are injected at
         // build time (CI passes -PappUrl/-PappAuthUser/-PappPw from secrets — kept out

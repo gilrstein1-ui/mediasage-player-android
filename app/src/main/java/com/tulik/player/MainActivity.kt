@@ -107,9 +107,19 @@ class MainActivity : AppCompatActivity() {
                     .setNotificationVisibility(
                         android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
                     )
-                    .setDestinationInExternalPublicDir(
+                // Public Downloads needs WRITE_EXTERNAL_STORAGE on Android 8/9 (API<29),
+                // which this app doesn't hold — there the download throws and fails. Fall
+                // back to the app's external files dir on legacy (no permission needed,
+                // same as the updater); keep the public Downloads folder on Android 10+.
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    req.setDestinationInExternalPublicDir(
                         android.os.Environment.DIRECTORY_DOWNLOADS, fname
                     )
+                } else {
+                    req.setDestinationInExternalFilesDir(
+                        this, android.os.Environment.DIRECTORY_DOWNLOADS, fname
+                    )
+                }
                 if (ServerConfig.authPw.isNotEmpty()) {
                     val cred = android.util.Base64.encodeToString(
                         "${ServerConfig.authUser}:${ServerConfig.authPw}".toByteArray(),
