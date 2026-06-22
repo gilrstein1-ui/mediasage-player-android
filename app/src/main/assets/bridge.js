@@ -305,18 +305,29 @@
     return list.length ? list[0] : null;
   }
 
+  // Re-assert play on the live <audio> a few times after a 'play' command.
+  // On a car Bluetooth (re)connect or a skip the audio route changes, and the
+  // page's own play() can lose that race and silently no-op — leaving the car
+  // showing the track name but playing nothing. Retrying until it sticks makes
+  // playback actually come back. play() is a no-op once it's already going.
+  function ensurePlaying(tries) {
+    var au = findAudio(false);
+    if (au && au.paused) { try { au.play(); } catch (e) {} }
+    if (tries > 0) setTimeout(function () { ensurePlaying(tries - 1); }, 400);
+  }
+
   // Called from native (notification / lock-screen buttons).
   window.__msAndroid = {
     action: function (a) {
       // Preferred: the player page's own transport hook (works even though the
       // WebView has no Media Session API — fixes dead car/lock-screen buttons).
-      if (typeof window.__npAction === 'function') { try { window.__npAction(a); return; } catch (e) {} }
+      if (typeof window.__npAction === 'function') { try { window.__npAction(a); if (a === 'play') ensurePlaying(3); return; } catch (e) {} }
       var key = ACTION_MAP[a] || a;
-      if (handlers[key]) { try { handlers[key](); return; } catch (e) {} }
+      if (handlers[key]) { try { handlers[key](); if (a === 'play') ensurePlaying(3); return; } catch (e) {} }
       // Fallback: drive the audio element directly.
       var au = findAudio(false);
       if (!au) return;
-      if (a === 'play') { try { au.play(); } catch (e) {} }
+      if (a === 'play') { try { au.play(); } catch (e) {} ensurePlaying(3); }
       else if (a === 'pause') { try { au.pause(); } catch (e) {} }
     }
   };
