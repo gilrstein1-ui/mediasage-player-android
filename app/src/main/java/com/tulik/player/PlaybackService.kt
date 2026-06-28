@@ -4,8 +4,12 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.media.AudioManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
@@ -15,6 +19,7 @@ import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import androidx.media.app.NotificationCompat.MediaStyle
 import java.net.URL
 import kotlin.concurrent.thread
@@ -31,6 +36,15 @@ class PlaybackService : Service() {
     private var artBitmap: Bitmap? = null
     private var lastArtUrl: String = ""
     private var started = false
+
+    // Pause (never reroute to the phone speaker) when audio output goes "noisy" —
+    // e.g. car Bluetooth disconnects or headphones unplug. Without this, Android
+    // keeps the WebView audio playing out loud on the device speaker (Rambo, 2026-06-28).
+    private val becomingNoisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) drive("pause")
+        }
+    }
 
     companion object {
         const val CHANNEL = "playback"
@@ -64,6 +78,11 @@ class PlaybackService : Service() {
             })
             isActive = true
         }
+        ContextCompat.registerReceiver(
+            this, becomingNoisyReceiver,
+            IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -208,6 +227,7 @@ class PlaybackService : Service() {
     }
 
     override fun onDestroy() {
+        try { unregisterReceiver(becomingNoisyReceiver) } catch (e: Exception) { /* not registered */ }
         session.isActive = false
         session.release()
         super.onDestroy()
