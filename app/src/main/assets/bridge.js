@@ -321,13 +321,13 @@
     action: function (a) {
       // Preferred: the player page's own transport hook (works even though the
       // WebView has no Media Session API — fixes dead car/lock-screen buttons).
-      if (typeof window.__npAction === 'function') { try { window.__npAction(a); if (a === 'play') ensurePlaying(3); return; } catch (e) {} }
+      if (typeof window.__npAction === 'function') { try { window.__npAction(a); return; } catch (e) {} }
       var key = ACTION_MAP[a] || a;
-      if (handlers[key]) { try { handlers[key](); if (a === 'play') ensurePlaying(3); return; } catch (e) {} }
+      if (handlers[key]) { try { handlers[key](); return; } catch (e) {} }
       // Fallback: drive the audio element directly.
       var au = findAudio(false);
       if (!au) return;
-      if (a === 'play') { try { au.play(); } catch (e) {} ensurePlaying(3); }
+      if (a === 'play') { try { au.play(); } catch (e) {} }
       else if (a === 'pause') { try { au.pause(); } catch (e) {} }
     }
   };
